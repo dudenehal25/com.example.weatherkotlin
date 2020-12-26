@@ -3,6 +3,7 @@ package com.example.weatherkotlin
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.app.Dialog
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -23,7 +24,10 @@ import com.karumi.dexter.MultiplePermissionsReport
 import com.karumi.dexter.PermissionToken
 import com.karumi.dexter.listener.PermissionRequest
 import com.karumi.dexter.listener.multi.MultiplePermissionsListener
+import kotlinx.android.synthetic.main.activity_main.*
 import retrofit.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 
 class MainActivity : AppCompatActivity() {
@@ -34,12 +38,13 @@ class MainActivity : AppCompatActivity() {
     // A global variable for Current Longitude
     private var mLongitude: Double = 0.0
 
+    private var mProgressBar:Dialog? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        mFusedLocationProviderClient =
-            LocationServices.getFusedLocationProviderClient(this@MainActivity)
+        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this@MainActivity)
 
 
         if (!isLocationEnabled()) {
@@ -70,7 +75,6 @@ class MainActivity : AppCompatActivity() {
                         permissions: MutableList<PermissionRequest>?,
                         token: PermissionToken?
                     ) {
-
                         showRationalDialogForPermissions()
                     }
                 }).onSameThread().check()
@@ -79,7 +83,6 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("MissingPermission")
     fun requestLocationData() {
-
         val mLocationRequest = LocationRequest()
         mLocationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
 
@@ -133,7 +136,8 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    private fun getLocationWeatherDetails(latitide:Double , longitude:Double) {
+
+    private fun getLocationWeatherDetails(latitude:Double , longitude:Double) {
         if (Constants.isNetworkAvailable(this)) {
             val retrofit: Retrofit = Retrofit.Builder()
                 .baseUrl(Constants.BASE_URL)
@@ -142,18 +146,22 @@ class MainActivity : AppCompatActivity() {
 
             val service = retrofit.create(WeatherService::class.java)
 
-            val listcall:Call<WeatherResponse> = service.getWeather(latitide , longitude
-                ,Constants.METRIC_UNIT , Constants.APP_ID)
+            val listcall:Call<WeatherResponse> = service.getWeather(latitude , longitude,Constants.METRIC_UNIT , Constants.APP_ID)
 
+            showCustomdialog()
             listcall.enqueue(object : Callback<WeatherResponse>{
+
                 override fun onFailure(t: Throwable?) {
+                    hidePRogressbAr()
                     Log.e("Errorr" , t!!.message.toString())
 
                 }
 
                 override fun onResponse(response: Response<WeatherResponse>?, retrofit: Retrofit?) {
                     if (response!!.isSuccess){
+                        hidePRogressbAr()
                         val weatherList = response.body()
+                        setupUI(weatherList)
                         Log.i("Response Result", "$weatherList")
                     }
                     else{
@@ -171,5 +179,66 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "No Internet!!!!", Toast.LENGTH_SHORT).show()
         }
 
+    }
+
+    private fun setupUI(weatherList : WeatherResponse){
+        for (i in weatherList.weather.indices){
+            Log.e("hey" ,weatherList.weather.toString())
+            tvWeatherTitle.text = weatherList.weather[i].main
+            tvWeatherDescription.text = weatherList.weather[i].description
+
+            tvCurrentTemp.text = weatherList.main.temp.toString() + "°C"
+            tvHumdityPercent.text = weatherList.main.humidity.toString() + "%"
+
+            tvMaxTemp.text = weatherList.main.temp_max.toString() + "°C"
+            tvfeelslike.text = weatherList.main.feels_like.toString()+"°C"
+            tvMinTemp.text = weatherList.main.temp_min.toString()+"°C"
+
+            tvWindspeed.text = weatherList.wind.speed.toString() + "km/hr"
+            tvWindValue.text = weatherList.wind.deg.toString() + "°"
+
+            tvSunrise.text = timex(weatherList.sys.sunrise)
+            tvSunset.text = timex(weatherList.sys.sunset)
+
+            tv_name.text = weatherList.name
+            tv_country.text = weatherList.sys.country
+
+            // Here we update the main icon
+            when (weatherList.weather[i].icon) {
+                "01d" -> iv_main.setImageResource(R.drawable.sunny)
+                "02d" -> iv_main.setImageResource(R.drawable.cloud)
+                "03d" -> iv_main.setImageResource(R.drawable.cloud)
+                "04d" -> iv_main.setImageResource(R.drawable.cloud)
+                "04n" -> iv_main.setImageResource(R.drawable.cloud)
+                "10d" -> iv_main.setImageResource(R.drawable.rain)
+                "11d" -> iv_main.setImageResource(R.drawable.storm)
+                "13d" -> iv_main.setImageResource(R.drawable.snowflake)
+                "01n" -> iv_main.setImageResource(R.drawable.cloud)
+                "02n" -> iv_main.setImageResource(R.drawable.cloud)
+                "03n" -> iv_main.setImageResource(R.drawable.cloud)
+                "10n" -> iv_main.setImageResource(R.drawable.cloud)
+                "11n" -> iv_main.setImageResource(R.drawable.rain)
+                "13n" -> iv_main.setImageResource(R.drawable.snowflake)
+            }
+
+
+        }
+    }
+
+    private fun showCustomdialog(){
+     mProgressBar = Dialog(this)
+
+        mProgressBar!!.setContentView(R.layout.progress_activity)
+        mProgressBar!!.show()
+
+    }
+    private fun hidePRogressbAr(){
+        mProgressBar!!.dismiss()
+    }
+    private fun timex(timex:Long) : String?{
+        val date = Date(timex)
+        val simpleDateFormat = SimpleDateFormat("HH:mm")
+        simpleDateFormat.timeZone = TimeZone.getDefault()
+        return simpleDateFormat.format(date)
     }
 }
